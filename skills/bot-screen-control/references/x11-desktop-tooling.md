@@ -1,16 +1,16 @@
-# X11 masaüstü araçları — derinlik notları
+# X11 desktop tooling — depth notes
 
-Bu dosya `bot-screen-control` için ara sıra gereken ayrıntıları taşır. Varsayılan yol her zaman
-görsel + koordinattır; buradakiler koordinatlar kırılganlaştığında veya bir GUI aracını bu ekrana
-yönlendirmek gerektiğinde devreye girer.
+Supporting detail for `bot-screen-control`. The default path is always visual + coordinates;
+everything here applies when coordinates get fragile or a GUI tool must be aimed at this screen.
 
-## 1. Oturum env hijyeni (Hermes'ten GUI aracı başlatırken)
+## 1. Session env hygiene (launching a GUI tool from Hermes)
 
-Gateway kullanıcının GNOME/Wayland oturumunda çalışır; çocuk süreçlere `XDG_SESSION_TYPE=wayland`
-ve `WAYLAND_DISPLAY=wayland-0` sızar. Bot ekranı ise X11 (`:20`, Xvnc). Bu karışım yüzünden bir araç
-"Wayland oturumu + DISPLAY=:20" der, x11 backend'lerini kapatır ve "klavye girdisi yok" raporlar.
+The gateway runs inside the user's GNOME/Wayland session, so child processes inherit
+`XDG_SESSION_TYPE=wayland` and `WAYLAND_DISPLAY=wayland-0`. The bot screen is X11 (`:20`, Xvnc).
+Because of that mixture a tool concludes "Wayland session + DISPLAY=:20", disables its X11 backends
+and reports "no keyboard input".
 
-Aracı başlatmadan önce:
+Before launching the tool:
 
 ```bash
 set -a; . ~/.hermes/bot-desktop/env; set +a
@@ -18,127 +18,130 @@ unset WAYLAND_DISPLAY
 export XDG_SESSION_TYPE=x11 XDG_CURRENT_DESKTOP=XFCE GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb
 ```
 
-Belirti: araç `xdg_session_type=wayland` görürken `display=:20` görüyorsa env düzeltilmemiştir.
-`DBUS_SESSION_BUS_ADDRESS` bot env'inden gelmeli; kullanıcının oturum veriyoluna bağlanmak AT-SPI'yi
-başka bir masaüstünün ağacına götürür.
+Symptom: the tool sees `xdg_session_type=wayland` while `display=:20` — the env was not fixed.
+`DBUS_SESSION_BUS_ADDRESS` must come from the bot env; connecting to the user's session bus drags
+AT-SPI into a different desktop's tree.
 
-## 2. İsteğe bağlı: sayfa içeriğini semantik okuma
+## 2. Optional: reading page content semantically
 
-Chrome, sayfa erişilebilirlik ağacını yalnız `--force-renderer-accessibility` ile açar. Bayraksız
-AT-SPI ağacı sadece pencere kromunu verir (~3 düğüm: uygulama + çerçeve). Bayrakla aynı sayfa
-`combo box "Kaynak metin"`, `page tab "Türkçe"`, `button "Çeviri"` gibi adlandırılmış düğümlere
-ayrılır → koordinat yerine **ada göre tıklama** mümkün olur.
+Chrome exposes its page accessibility tree only with `--force-renderer-accessibility`. Without the
+flag the AT-SPI tree holds just the window chrome (~3 nodes: application + frame). With it, the same
+page splits into named nodes such as `combo box "Source text"`, `page tab "Turkish"`,
+`button "Translate"` — which enables **clicking by name instead of by coordinate**.
 
-- Bayrak açılışa özeldir, kalıcı ayar değildir; normal menü açılışında etkisi yoktur.
-- Her gezinmeden sonra ağaç yeniden okunmalı: snapshot indeksleri geçersizleşir.
-- Ağaç boyutu büyük (yüzlerce düğüm) ve çoğu zaman sayfalanır; okuma sırasında "kaç düğüm geldi,
-  kaç tanesi ham" diye say, eksik sayfayı "bulamadım" sanma.
+- The flag is per launch, not a setting; it has no effect when Chrome starts from the menu.
+- Re-read the tree after every navigation: snapshot indices go stale.
+- Trees are large (hundreds of nodes) and often paginated; count "how many arrived vs the raw total"
+  so you do not mistake a missing page for "not found".
 
-Karar: koordinat + `wait-change` yeterince sağlamsa bu yola hiç girme; kırılırsa yukarıdaki bayrakla
-geçici olarak semantik okumaya düş.
+Decision: if coordinates + `wait-change` are solid enough, skip this path entirely; when they break,
+fall back to semantic reading temporarily with the flag above.
 
-## 3. wmctrl olmadan pencere işleri
+## 3. Window handling without wmctrl
 
 ```bash
-xdotool search --onlyvisible --name ""          # id listesi (boş desen = hepsi)
+xdotool search --onlyvisible --name ""          # id list (empty pattern = all)
 xdotool getwindowname <id>
 xdotool getwindowgeometry --shell <id>           # X/Y/WIDTH/HEIGHT
-xdotool windowactivate <id>                      # odak
+xdotool windowactivate <id>                      # focus
 xdotool windowmove <id> X Y
 xdotool windowsize <id> W H
 ```
 
-Bu dörtlü listeleme/odak/taşıma/boyutlandırma için yeterlidir. wmctrl'in eklediği tek şey çalışma
-alanı, sticky/pin ve EWMH meta verisi — bu iş için gerekmedi.
+These four cover list/focus/move/resize. wmctrl only adds workspaces, sticky/pin and EWMH metadata —
+not needed for this work.
 
-## 4. ImageMagick'siz ekran görüntüsü
+## 4. Screenshots without ImageMagick
 
 ```bash
 ffmpeg -loglevel error -f x11grab -video_size 1440x900 -i :20 -frames:v 1 -y out.png
-# kırpma / ölçekleme
+# crop / scale
 -vf "crop=635:115:75:330"        # w:h:x:y
 -vf "scale=iw*2:ih*2:flags=lanczos"
 ```
 
-`XAUTHORITY` set edilmiş olmalı. `import`, `scrot`, `gnome-screenshot`, `xwd` gerekmez.
-Kırpma + 2x büyütme, küçük UI yazısını okunur kılar ve tek görüntüde yakınlaştırmadan daha az
-bağlam harcar.
+`XAUTHORITY` must be set. `import`, `scrot`, `gnome-screenshot` and `xwd` are not required.
+Crop + 2x upscale makes small UI text readable and spends less context than a giant full-screen image.
 
-## 5. Kullanıcının ekranda yaptıklarını kaydetme
+## 5. Recording what the user does on screen
+
+Prefer the built-in commands:
+
+```bash
+python3 screen.py record --seconds 600 --fps 1 --dir /tmp/watch
+python3 screen.py record-review --dir /tmp/watch --ratio 0.002
+```
+
+`record` writes `f0001.png`, `f0002.png`, … plus `meta.json`; `record-review` lists the frames where
+the screen changed (the interesting moments). Manual equivalent if you need a different pipeline:
 
 ```bash
 ffmpeg -loglevel error -f x11grab -framerate 1 -video_size 1440x900 -i :20 -t 900 \
   -y ~/.hermes/cache/scratch/watch/f%04d.png
 ```
 
-Ardından ilginç anları bulmak için kareleri küçültüp karşılaştır:
+**Deduplicating frames by file hash misleads**: the clock, the cursor and animations change every
+frame, so every frame looks "different". Downscale to `32x20` grayscale signatures and compare bytes;
+threshold at a few times the mean difference. Then merge the 6-8 chosen frames into one image
+(`xstack`) and read them in a single look.
+
+## 6. Pointer/keyboard subtleties
+
+- **ctrl+click (open in new tab):** `keydown ctrl` → `click 1` → `keyup ctrl`. Order matters; a
+  `keyup` before the click makes it a normal click.
+- **Wheel:** on X11 button 4 = up, 5 = down; each `click 4/5` is one notch.
+- **Drag:** glide to the target → `mousedown 1` → move through intermediate points → `mouseup 1`;
+  jumping in one step leaves no selection.
+- **Focus:** clicking the target is usually enough; but before sending a shortcut (`ctrl+l`) activate
+  the window first (`xdotool windowactivate`).
+- **State after scrolling:** `Down`/`PageDown` can also move focus in a sticky date strip or list
+  selection; prefer the wheel and verify the URL/title change.
+
+## 7. Which Chrome profile/session is open? (prove it, do not guess)
+
+"It asks me to log in again" has two causes: the wrong profile is open, or nobody ever logged in to
+that profile. Both are measurable; do not jump to copying profiles.
 
 ```bash
-ffmpeg -i f%04d.png -vf "scale=32:20,format=gray" -f rawvideo -y sigs.raw
-```
-
-`32x20` gri imzaları Python'da bayt bayt karşılaştır, ortalama farkın birkaç katını eşik al.
-**Dosya hash'i ile kare tekilleştirme yanıltır**: saat, imleç ve animasyon her kareyi değiştirir,
-her kare "farklı" çıkar. Seçilen 6-8 kareyi tek görüntüde birleştirip (`xstack`) tek bakışta oku.
-
-## 6. Fare/klavye incelikleri
-
-- **ctrl+tık (yeni sekmede aç):** `keydown ctrl` → `click 1` → `keyup ctrl`. Sıra önemli; `keyup`
-  tıklamadan önce giderse normal tıklama olur.
-- **Tekerlek:** X11'de buton 4 = yukarı, 5 = aşağı; her `click 4/5` bir tık.
-- **Sürükleme:** hedefe kaydır → `mousedown 1` → ara noktalarla ilerle → `mouseup 1`;
-  tek adımda zıplamak seçim bırakmaz.
-- **Odak:** tıklamadan önce pencereyi `windowactivate` ile öne almak yerine hedefe tıklamak
-  çoğu zaman yeter; yine de kısayol göndereceksen (`ctrl+l` gibi) önce pencereyi etkinleştir.
-- **Kaydırma sonrası durum:** `Down`/`PageDown` tuşları sayfayı kaydırırken odaklanmış bir tarih
-  şeridi veya liste seçimini de değiştirebilir; kaydırma için tercihen tekerlek kullan ve
-  URL/başlık değişimini doğrula.
-
-## 7. Hangi Chrome profili / oturum açık? (kanıtla, tahmin etme)
-
-"Giriş yapmıştım, yine istiyor" şikâyetinin iki nedeni var: yanlış profil açık, ya da o profilde
-hiç giriş yapılmamış. İkisi de ölçülebilir; tahminle profil kopyalama yoluna girme.
-
-```bash
-# 1) pencerenin kullandığı user-data-dir (argüman yoksa XDG varsayılanı)
+# 1) the user-data-dir the window uses (no argument = XDG default)
 for p in $(pgrep -f 'opt/google/chrome/chrome'); do
   c=$(tr '\0' ' ' </proc/$p/cmdline)
   case "$c" in *--type=*) continue;; esac
   echo "$p :: $(echo "$c" | cut -c1-140)"
 done
 
-# 2) o profilin cookie'lerinde hedef alan adı var mı (kopyala, canlı DB'yi açma)
+# 2) does that profile's cookie DB know the target domain (copy it, never open the live DB)
 cp ~/.hermes/bot-desktop/xdg/google-chrome/Default/Cookies /tmp/ck.db
 python3 -c "import sqlite3;c=sqlite3.connect('/tmp/ck.db');print(c.execute('select host_key,name from cookies where host_key like \"%trakt%\"').fetchall())"
 
-# 3) profil hiç kullanılmış mı: History'deki URL sayısı + doğum zamanı
+# 3) was the profile ever used: URL count in History + birth time
 cp ~/.hermes/bot-desktop/xdg/google-chrome/Default/History /tmp/h.db
 python3 -c "import sqlite3;print(sqlite3.connect('/tmp/h.db').execute('select count(*) from urls').fetchone())"
 stat -c '%w' ~/.hermes/bot-desktop/xdg/google-chrome
 ```
 
-Yorum: oturum cookie'si (`__Secure-…session_token`, `trakt-oidc-auth` gibi) yoksa o profilde giriş
-yoktur; `History` 0 URL ise o pencere hiç gezinmemiştir (yani "eskiden giriş yapmıştım" başka bir
-profile aittir). `bot-desktop/browser-profile` (ajan/dock) ile `xdg/google-chrome` (menü) ayrı
-jar'lardır — kullanıcı hangisinde giriş yaptıysa kalıcı olan odur.
+Read it like this: no session cookie (`__Secure-…session_token`, `trakt-oidc-auth`, …) means that
+profile has no login; `History` with 0 URLs means the window never navigated (so "I logged in before"
+belongs to another profile). `bot-desktop/browser-profile` (agent/dock) and `xdg/google-chrome`
+(menu) are separate jars — whichever one the user logged into is the persistent one.
 
-## 8. Üçüncü taraf bir GUI yığınını sudo'suz, kalıcı iz bırakmadan denemek
+## 8. Trying a third-party GUI stack without sudo or permanent traces
 
-Kullanıcı "şu hazır skill'i/aracı deneyelim" dediğinde sistemi kirletmeden dene:
+When the user says "let's try this ready-made skill/tool", test it without polluting the system:
 
 ```bash
 mkdir -p ~/.hermes/cache/scratch/trial && cd ~/.hermes/cache/scratch/trial
-npm install --prefix . --no-audit --no-fund <paket>          # postinstall bloklu olabilir
-node node_modules/<paket>/npm/install.js                     # ikiliyi elle indir
+npm install --prefix . --no-audit --no-fund <package>        # postinstall may be blocked
+node node_modules/<package>/npm/install.js                   # fetch the binary by hand
 
-# sistem ikilisi eksikse (örn. wmctrl): sudo yerine .deb çıkar
+# missing system binary (e.g. wmctrl): extract the .deb instead of using sudo
 apt-get download wmctrl && dpkg-deb -x wmctrl*.deb ./root
 export PATH=$PWD/root/usr/bin:$PATH
 ```
 
-- MCP'li araçlarda `npm/bin/*.js` bir shim'dir; gerçek ikiliyi (örn. `*-linux-x64`) doğrudan çağır,
-  yoksa stdio el sıkışması zaman aşımına düşer.
-- Araç "Wayland" sanıyorsa §1'deki env düzeltmesini uygula; yoksa pencere listesi ve klavye
-  girdisini "yok" diye raporlar (suçlu araç değil, sızan env).
-- Deneme bitince dizini, çıkardığın ikiliyi ve varsa profil kopyalarını sil; kararı kullanıcı verir,
-  sen yalnızca ölçümü ve temizliği yaparsın.
+- In MCP-enabled tools `npm/bin/*.js` is a shim; call the real binary (e.g. `*-linux-x64`) directly,
+  otherwise the stdio handshake times out.
+- If the tool thinks it is on "Wayland", apply the §1 env fix; otherwise it reports window listing
+  and keyboard input as unavailable (the culprit is the leaked env, not the tool).
+- When the trial ends, delete the directory, the binaries you unpacked and any profile copies. The
+  user makes the decision; you only produce the measurements and the cleanup.

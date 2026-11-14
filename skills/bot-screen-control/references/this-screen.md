@@ -1,43 +1,44 @@
-# Örnek ölçümler (1440x900, Xfce) — kendi makinende yeniden ölç
+# Example measurements (1440x900, Xfce) — re-measure on your machine
 
-> Bu dosya **bir makinede alınmış örnektir**, taşınabilir bir harita değil. Tema/panel/çözünürlük
-> değişince geçersiz olur (yazarken bile menü sırası değişti). `check` + `shot` ile yeniden ölç.
+> This file is **a sample taken on one machine**, not a portable map. It goes stale when the theme,
+> panel layout or resolution changes (the menu order changed while this file was being written).
+> Re-measure with `check` + `shot --grid`.
 
-Koordinatlar **ekrana** aittir, ekran görüntüsüne değil (ölçek 1:1). Tema, panel düzeni veya
-çözünürlük değişince yeniden ölçülür: `screen.py shot --out /tmp/s.png` → görüntüyü oku →
-hedefin merkezini yaz.
+Coordinates refer to the **screen**, not to a screenshot (scale 1:1). To re-measure: take a
+`shot --grid 50`, read the image, and write down the center of the target.
 
-## Panel / menü
+## Panel / menu
 
-| Hedef | Koordinat | Not |
+| Target | Coordinate | Note |
 |---|---|---|
-| Uygulama menüsü (sol üst ikon) | `15 15` | menü açılır, kategoriler listelenir |
-| "İnternet Tarayıcısı" (menü en üstü) | `100 124` | doğrudan Chrome açar — **en kısa yol** |
-| Menü: "İnternet" kategorisi | `63 275` | alt menü sağa açılır (eski temada `119`) |
-| Menü: "Donatılar" | `63 197` | eski temada `Yardımcı Programlar` |
+| Application menu (top-left icon) | `15 15` | opens the category list |
+| "Internet Browser" (top of the menu) | `100 124` | opens Chrome directly — **shortest path** |
+| Menu: "Internet" category | `63 275` | submenu opens to the right (was `119` in the older theme) |
+| Menu: "Accessories" | `63 197` | was "Utility" in the older theme |
 
-> Not: menü sıralaması temaya göre değişiyor; `15 15` + `shot` ile her zaman doğrula.
+> The menu order follows the theme; always confirm with `15 15` + `shot`.
 
 ## Chrome
 
-| Hedef | Koordinat | Not |
+| Target | Coordinate | Note |
 |---|---|---|
-| Yer imi çubuğu satırı | `y=128` | `ctrl+shift+b` ile açılır |
-| "Çeviri" yer imi | `88 128` | ctrl+tık = yeni sekmede aç |
-| Adres çubuğu | `ctrl+l` | koordinat yerine kısayol tercih et |
-| Sekme şeridi | `y≈34` | sekmeler arası `ctrl+Tab` daha güvenli |
+| Bookmarks bar row | `y=128` | shown with `ctrl+shift+b` |
+| "Translate" bookmark | `88 128` | ctrl+click = open in a new tab |
+| Address bar, maximized 1440x900 window | `y=79` | prefer `ctrl+l` over a coordinate |
+| Address bar, window at 1440x880+0+28 | `600 91` | the tab strip sits at `y≈50` in this geometry |
+| Tab strip | `y≈34` | `ctrl+Tab` is safer than clicking a tab |
 
-## Google Çeviri (translate.google.com.tr)
+## Google Translate (translate.google.com.tr)
 
-| Hedef | Koordinat | Not |
+| Target | Coordinate | Note |
 |---|---|---|
-| Kaynak metin kutusu | `390 415` | tıkladıktan sonra `type` |
-| Kaynak dil çipleri | `y=337` | "Dili algıla" ~80, "Türkçe" ~155 |
-| Hedef dil çipleri | `y=337` | "İngilizce" ~744, "Türkçe" ~815 |
+| Source text box | `390 415` | then `type` / `fill` |
+| Source language chips | `y=337` | "Detect language" ~80, "Turkish" ~155 |
+| Target language chips | `y=337` | "English" ~744, "Turkish" ~815 |
 
 ## Trakt (app.trakt.tv)
 
-| Hedef | Koordinat | Not |
+| Target | Coordinate | Note |
 |---|---|---|
-| Kenar çubuğu "Geçmiş" | `100 735` | `app.trakt.tv/history` |
-| Tarih şeridi | üstte, `y≈200` | `Down`/`Up` tuşları odağı buraya kaydırır, URL'ye `?date=` ekler |
+| Sidebar "History" | `100 735` | `app.trakt.tv/history` |
+| Date strip | near the top, `y≈200` | `Down`/`Up` keys move focus here and add `?date=` to the URL |

@@ -1,49 +1,60 @@
 # hermes-skills
 
-Hermes Agent için kişisel skill koleksiyonu. Her skill `skills/<ad>/SKILL.md` düzeninde durur;
-bu repo hem **tap** (kaynak) hem de tek tek kurulum için kullanılabilir.
+A personal skill collection for [Hermes Agent](https://github.com/NousResearch/hermes-agent).
+Every skill lives at `skills/<name>/SKILL.md`, so this repo works both as a **tap** (a skill source)
+and for installing single skills.
 
-## İçindekiler
+## Contents
 
-| Skill | Ne yapar |
+| Skill | What it does |
 |---|---|
-| [`bot-screen-control`](skills/bot-screen-control/SKILL.md) | X11 masaüstünü gerçek fare/klavye olaylarıyla sürer: ekran görüntüsü, yumuşak imleç kaydırma, tıklama, sürükleme, kaydırma, Unicode metin yazma, pencere işleri, "değişti mi" beklemesi. AT-SPI/OCR/MCP gerektirmez. |
+| [`bot-screen-control`](skills/bot-screen-control/SKILL.md) | Drives an X11 desktop with real pointer and keyboard events: screenshots, eased pointer glides, clicks, drags, scrolling, Unicode text entry, window handling, change detection and recording. No AT-SPI, OCR or MCP required. |
 
-## Kurulum
+Skills in this repo are written in English (code, docs, output). Release notes: [CHANGELOG.md](CHANGELOG.md).
 
-**Tap olarak ekle (repodaki tüm skill'ler görünür):**
+## Install
+
+**As a tap (every skill in the repo becomes visible):**
 
 ```bash
 hermes skills tap add Salih800/hermes-skills
-hermes skills search bot-screen      # artık listede
 hermes skills install Salih800/hermes-skills/bot-screen-control
 ```
 
-**Tap eklemeden tek skill:**
+**A single skill, without adding a tap:**
 
 ```bash
 hermes skills install Salih800/hermes-skills/bot-screen-control
 ```
 
-**Elle:** `skills/bot-screen-control/` klasörünü `~/.hermes/skills/` içine kopyala.
+**By hand:** copy `skills/bot-screen-control/` into `~/.hermes/skills/`.
 
-Kurduktan sonra ilk komut **öz-denetim** olmalı:
+After installing, the first command should be the self-check:
 
 ```bash
 python3 ~/.hermes/skills/bot-screen-control/scripts/screen.py check
 ```
 
-## Gereksinimler
+## Requirements
 
-- Linux, **X11** oturumu (XWayland pencereleri de çalışır; saf Wayland pencereleri çalışmaz)
-- `ffmpeg` ve `xdotool` (zorunlu), `xclip` (pano ile yazma için önerilir), `setxkbmap` (klavye düzeni değişimi için)
-- Python 3.10+ , PIL (kare farkı için)
+- Linux with an **X11** session (XWayland windows work; native Wayland windows do not)
+- `ffmpeg` and `xdotool` (required), `xclip` (recommended, clipboard-based typing),
+  `setxkbmap` (needed to switch keyboard layouts)
+- Python 3.10+ and PIL (frame diffing)
 
-## bu repoyu kendi kullanımın için
+## Using this repo for your own skills
 
-`skills/` altına yeni klasör ekle, `SKILL.md` yaz, commit et. Tap kullanan makineler
-`hermes skills check` / `hermes skills update` ile güncellemeyi alır.
+Add a folder under `skills/`, write its `SKILL.md`, commit and push. Machines that added the tap pick
+up changes with `hermes skills check` / `hermes skills update`.
 
-## Lisans
+## Background
 
-MIT — bkz. [LICENSE](LICENSE)
+`bot-screen-control` grew out of driving a headless Xfce "bot desktop" (Xvnc) where the built-in
+desktop driver could not capture the screen and the browser tool refused while a human held the
+pointer. The design choice is deliberate: **screenshots plus coordinates only**, with a strict
+verify-after-every-action loop, because that survives SPA login walls, canvas apps, native windows
+and a broken accessibility stack alike.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

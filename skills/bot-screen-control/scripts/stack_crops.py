@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Ayni bolgeyi N ekran goruntusunden kirpip tek bir kompozit goruntu yapar.
+"""Stack the same region of N screenshots into one composite image.
 
-Amac: N kareyi tek vizyon cagrisinda okumak (ayri ayri sormak yerine).
+Goal: read N frames in a single vision call instead of one call per frame.
 
-Kullanim:
+Usage:
   python3 stack_crops.py --box 940,160,1440,205 --scale 2 --out /tmp/titles.png a.png b.png c.png
 
---box   x1,y1,x2,y2 (tum karelerde ayni yer olmali)
---scale buyutme carpani (kucuk yazi icin 2-3 iyi)
---out   cikti yolu (yazdirilir)
---label opsiyonel: dosya adlarini sol kenara yazar
+--box   x1,y1,x2,y2 (must land on the same place in every frame)
+--scale upscale factor (2-3 works well for small text)
+--out   output path (printed when done)
+--label optional: write each file name in the left margin
 """
 import argparse
 import sys
@@ -17,7 +17,7 @@ import sys
 try:
     from PIL import Image, ImageDraw
 except ImportError:
-    sys.exit("PIL yok: python3 -m pip install pillow")
+    sys.exit("PIL missing: python3 -m pip install pillow")
 
 
 def main() -> None:
@@ -25,14 +25,14 @@ def main() -> None:
     ap.add_argument("--box", required=True, help="x1,y1,x2,y2")
     ap.add_argument("--scale", type=float, default=2.0)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--label", action="store_true", help="dosya adini seridin soluna yaz")
+    ap.add_argument("--label", action="store_true", help="write the file name in the left margin")
     ap.add_argument("images", nargs="+")
     a = ap.parse_args()
 
     try:
         x1, y1, x2, y2 = [int(v) for v in a.box.split(",")]
     except ValueError:
-        sys.exit("--box x1,y1,x2,y2 seklinde olmali")
+        sys.exit("--box must look like x1,y1,x2,y2")
 
     strips = []
     for path in a.images:
@@ -45,9 +45,7 @@ def main() -> None:
             crop = crop.resize((int(crop.width * a.scale), int(crop.height * a.scale)))
         strips.append((path, crop))
 
-    label_w = 0
-    if a.label:
-        label_w = 120
+    label_w = 120 if a.label else 0
     W = max(c.width for _, c in strips) + label_w
     sep = 3
     H = sum(c.height for _, c in strips) + sep * (len(strips) - 1)

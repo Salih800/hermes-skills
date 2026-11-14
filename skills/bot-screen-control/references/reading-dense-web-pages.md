@@ -1,99 +1,104 @@
-# Yoğun sayfalardan okuma (kesik metin, çoklu kare, SPA rotaları)
+# Reading dense pages (truncated text, many frames, SPA routes)
 
-## When to Use
+## When to use
 
-Ekran görüntüsü + tıklama ile **metin çıkarmak** gerektiğinde: liste/geçmiş sayfaları, kart ızgaraları,
-detay panelleri; "son izlediklerimi listele" gibi tek sayfadan çok satır okuyan işler. Kısaca: metin
-`…` ile kesikse, derin rota 404 veriyorsa ya da art arda çok kare okuman gerekiyorsa bu dosya devreye
-girer. Tıklama tarifi SKILL.md'de; burası "okumayı ucuzlatma" tarafı.
+Whenever you must **extract text** through screenshots and clicks: list/history pages, card grids,
+detail panels, "list what I watched recently" style jobs that read many rows from one page. In short:
+the text is cut with `…`, a deep route returns 404, or you need to read many frames in a row.
+Clicking recipes live in SKILL.md; this file is about making reading cheap.
 
-## 1. CSS `ellipsis` ile kesilen metin görüntüde YOKTUR
+## 1. Text cut by CSS `ellipsis` is NOT in the pixels
 
-`"S1 • B22 - The ..."` gibi kesik bir etikette eksik kısım DOM'da/CSS'te durur, pikselde durmaz.
-Bu yüzden şunların hiçbiri işe yaramaz: `shot --crop` ile yakınlaştırma, `ctrl+-` ile uzaklaştırma,
-sütun genişliğini beklemek, hover tooltip'i ummak. Kesik gördüğün an tek çıkış: **hedefi açmak**.
+For a label like `"S1 • B22 - The ..."` the missing part exists in the DOM/CSS, not in the pixels.
+So none of these help: zooming with `shot --crop`, zooming out with `ctrl+-`, waiting for the column
+to widen, or hoping for a hover tooltip. The moment you see an ellipsis the only exit is **open the
+target**.
 
-Ekran görüntüsü yakınlaştırması yalnız *küçük ama tam* yazılmış* metinde işe yarar (ince font, uzak
-rozetler). Karar kuralı: metin `…` ile bitiyorsa yakınlaştırma değil gezinme gerekir.
+Screenshot zooming only helps with *small but complete* text (thin fonts, distant badges). Rule of
+thumb: if the text ends with `…`, you need navigation, not magnification.
 
-## 2. Tam metni detay görünümünden oku, listeyi kaybetme
+## 2. Read the full text in the detail view, do not lose the list
 
-- Kartı `click X Y --mods ctrl` ile aç → arka planda sekme açılır, liste sekmesi durur.
-- Yeni sekmede başlık genelde iki yerde tam yazılıdır: sayfa `h1`'i ve sağ detay panelinin başlığı
-  (`<dizi> / S2 • B11 - <bölüm adı>`). Panel varsa `h1`'i aramana gerek yok, panel daha küçük alanda.
-- Okuma bittiğinde listeye sekmeye tıklayarak dön; geri tuşuyla gezinmek kaydırma konumunu bozar.
-- Liste sayfasında kalıcı bir şey değiştirme: sıralama, filtre ya da "izlendi" işareti kullanıcının
-  görünümünü bozar, geri almak ekstra turdur.
+- Open the card with `click X Y --mods ctrl` → a background tab opens, the list tab stays put.
+- In the new tab the title is usually complete in two places: the page `h1` and the right detail
+  panel heading (`<show> / S2 • B11 - <episode name>`). If the panel exists, skip the `h1`; the panel
+  is a smaller area to read.
+- When done, return to the list by clicking its tab; navigating back with the browser button breaks
+  the scroll position.
+- Do not change anything lasting on the list page: sorting, filters or "watched" marks alter the
+  user's view and undoing them costs an extra turn.
 
-## 3. SPA rota tuhaflıkları: derin rota 404 ise query param dene
+## 3. SPA route quirks: if a deep route 404s, try query params
 
-Tek sayfa uygulamalarında `/kaynak/<slug>/seasons/2` gibi derin rotalar 404 dönerken aynı içerik
-`/kaynak/<slug>?season=2` ile açılır; bölüm detayı da `?view=episode&season=2&episode=5` gibi
-query ile gelir. Rota 404 verdiğinde adresi uydurmaya devam etme: bir üst rotaya dön, hangi query
-parametresini kullandığını gördüğün çalışan adresten kopyala (adres çubuğu bunu zaten gösterir).
+In single-page apps a deep route like `/show/<slug>/seasons/2` may 404 while the same content opens
+with `/show/<slug>?season=2`; episode details arrive as
+`?view=episode&season=2&episode=5`. When a route 404s do not keep inventing addresses: go up one
+level, find the working URL, and copy the query parameter it used (the address bar shows it).
 
-Aynı mantıkla, "+8 böl" benzeri bir kutu tüm listeyi açmayabilir; sadece ilk öğeyi açar. Tam listeyi
-görmenin güvenilir yolu tek tek detay açmak ya da başlık sayfasının bölüm şeridini yatay kaydırmaktır.
+By the same logic a "+8 more" style box may only reveal the first extra item. The reliable way to see
+the whole list is opening items one by one, or horizontally scrolling the episode rail on the show page.
 
-## 4. N kare → 1 vizyon çağrısı (kompozit kırpma)
+## 4. N frames → 1 vision call (composite crops)
 
-Her ekran görüntüsü için ayrı vizyon çağrısı yapmak en pahalı yol. Aynı bölgeyi N karede okuyacaksan:
+One vision call per screenshot is the most expensive path. When you need the same region across N
+frames:
 
 ```bash
 S=~/.hermes/skills/bot-screen-control/scripts/screen.py
 for id in 9 10 11 12 13; do
   python3 $S key "ctrl+l" >/dev/null
-  python3 $S type "<adres>&episode=$id" >/dev/null
+  python3 $S type "<url>&episode=$id" >/dev/null
   python3 $S key "Return" >/dev/null
-  sleep 4
+  python3 $S wait-stable --quiet-for 1.5 >/dev/null
   python3 $S shot --out /tmp/ep$id.png >/dev/null
 done
 python3 ~/.hermes/skills/bot-screen-control/scripts/stack_crops.py \
   --box 940,160,1440,205 --scale 2 --out /tmp/titles.png /tmp/ep9.png /tmp/ep10.png /tmp/ep13.png
 ```
 
-Sonra `titles.png` tek seferde okunur. Kutu (x1,y1,x2,y2) tüm karelerde aynı yerde olmalı: hedef
-öğe sabit konumdaysa (sağ panel başlığı, sekme çubuğu, tablo sütunu) bu yöntem sorunsuzdur.
+Then read `titles.png` in one go. The box `(x1,y1,x2,y2)` must land on the same place in every
+frame: fine when the target is fixed (right panel heading, tab strip, table column).
 
-Kareler arasında en az ~4 s bekle; yavaş yüklenen bir karede başlık henüz yazılmamış olur ve
-kompozitte boş satır görürsün (tek başına yeniden çek, tüm seriyi değil).
+Leave ~2+ s between frames; in a slow-loading frame the title may not be rendered yet, giving an
+empty row in the composite (re-shoot that frame alone, not the whole series).
 
-## 5. Çoklu ctrl+tık sayısını doğrula
+## 5. Verify the number of ctrl+clicks
 
-Aynı koordinata art arda `--mods ctrl` tıklamak her seferinde yeni sekme açmaz: sayfa kaydıysa ya da
-tıklama aynı bağlantıya denk geldiyse sekme çoğalmaz. Tıklama serisinden sonra **sekme çubuğunun
-görüntüsünü al ve say**; beklediğinden az sekme varsa eksik öğeleri tek tek aç.
+Clicking the same coordinate with `--mods ctrl` repeatedly does not always open a new tab: if the
+page scrolled or the click hit the same link again, the tabs do not multiply. After a click series
+**screenshot the tab strip and count**; if you have fewer tabs than expected, open the missing items
+one by one.
 
-## 6. Yakınlaştırmayı geri al
+## 6. Reset the zoom
 
-Okuma için `ctrl+-` / `ctrl+0` kullandıysan iş bitince `key "ctrl+0"` ile %100'e dön; kullanıcının
-penceresini küçük fontla bırakmak bir sonraki turda yanlış koordinat üretir.
+If you used `ctrl+-` / `ctrl+0` for reading, return to 100% with `key "ctrl+0"` when done; leaving the
+user's window on a small font produces wrong coordinates on the next turn.
 
-## 7. Sticky göstergeler `Page_Down`'ı yer
+## 7. Sticky indicators swallow `Page_Down`
 
-Tarih/kaydırma göstergesi (sticky scrubber) olan sayfalarda `key Page_Down` gerçek kaydırma değil,
-göstergeye olay gönderir: tarih atlar, üstte kalıcı bir panel açık kalır ve `Escape`/`Home` bunu
-kapatmaz. Kaydırma her zaman `scroll down --amount N --at X,Y` ile yapılır (`--at` imleci içerik
-alanına koyar, göstergenin üstüne değil).
+On pages with a sticky date/scroll indicator (scrubber), `key Page_Down` does not scroll — it sends
+events to the indicator: the date jumps, a persistent panel stays open and `Escape`/`Home` will not
+close it. Always scroll with `scroll down --amount N --at X,Y` (`--at` puts the pointer on the content
+area, not on the indicator).
 
-## 8. Sayfa içi PDF / doküman görüntüleyici: ekrandan değil dosyadan oku
+## 8. In-page PDF / document viewers: read the file, not the screen
 
-Sayfaya gömülü doküman görüntüleyiciler (guideline, sözleşme, ders notu, 10+ sayfalık her şey)
-genelde %40-50 yakınlaştırmayla açılır; onlarca sayfayı `shot` + vizyon ile okumak yavaş ve hatalıdır.
-Doğru yol dokümanı indirip metni yerel olarak okumak:
+Documents embedded in a page (guidelines, contracts, lecture notes, anything 10+ pages) usually open
+at 40-50% zoom; reading dozens of pages with `shot` + vision is slow and error-prone. The right path
+is downloading the document and reading its text locally:
 
-1. Görüntüleyici araç çubuğundaki indirme/yazdırma simgesine tıkla (genelde en sağdaki ok/yazıcı).
-   Chrome'un "Yazdır" penceresi açılır, hedef zaten "PDF olarak kaydet" olur; "Sayfalar: Tümü" kalsın.
-   → `Kaydet`.
-2. Dosya adı penceresi gelir (klasör `~/Downloads`). Aynı adda eski bir dosya varsa adı değiştir:
-   ad alanına tıkla, `key "ctrl+a"`, `type "YeniAd.pdf"`, sonra `Kaydet`. Üzerine yazma — eski kopya
-   başka bir dokümandır ve geri getirilemez.
-3. `ls -lt ~/Downloads | head -3` ile dosyanın indiğini doğrula, sonra `read_file` ile oku: PDF'te
-   metin katmanı varsa `extracted_document: true` döner ve tablolar `|` satırları olarak gelir;
-   aradığın cümleyi `search_files` ile bulabilirsin.
-4. İndirilen dosya kullanıcının `~/Downloads` klasörüne düşer: raporunda adını söyle, kendi başına
-   silme.
+1. Click the download/print icon in the viewer toolbar (usually the rightmost arrow or printer).
+   Chrome's "Print" dialog opens with "Save as PDF" already selected; leave "Pages: All".
+   → `Save`.
+2. A filename dialog appears (folder `~/Downloads`). If a file with that name exists, rename it:
+   click the name field, `key "ctrl+a"`, `type "NewName.pdf"`, then `Save`. Never overwrite — the old
+   copy is a different document and cannot be recovered.
+3. Verify with `ls -lt ~/Downloads | head -3`, then read it with `read_file`: if the PDF has a text
+   layer it returns `extracted_document: true` and tables arrive as `|` rows; find the sentence you
+   need with `search_files`.
+4. The file lands in the user's `~/Downloads`: mention its name in your report, do not delete it on
+   your own.
 
-Neden: bu yolda tüm kurallar tek seferde okunur ve cevaplar tahmin yerine metinden alıntılanır.
-Ekrandan okumaya yalnız görüntüleyicide metin katmanı yoksa (taranmış belge) dön — o zaman da
-sayfa sayfa `shot --crop` + kompozit yöntemi (bkz. bölüm 4) kullanılır.
+Why: this path reads every rule at once and lets you quote from text instead of guessing. Fall back to
+reading the screen only when the viewer has no text layer (a scanned document) — then use page-by-page
+`shot --crop` plus the composite method from §4.
